@@ -205,13 +205,35 @@ type Config struct {
 type Hooks struct {
 	// Prestart commands are executed after the container namespaces are created,
 	// but before the user supplied command is executed from init.
+	// Note: This hook is now deprecated
 	Prestart []Hook
+
+	// CreateRuntime commands MUST be called as part of the create operation after
+	// the runtime environment has been created but before the pivot_root has been executed.
+	// CreateRuntime is called immediately after the deprecated Prestart hook.
+	CreateRuntime []Hook
 
 	// Poststart commands are executed after the container init process starts.
 	Poststart []Hook
 
 	// Poststop commands are executed after the container init process exits.
 	Poststop []Hook
+}
+
+type HookName int
+
+const (
+	Prestart HookName = iota
+	CreateRuntime
+	Poststart
+	Poststop
+)
+
+var HookToName = map[HookName]string{
+	Prestart:      "Prestart",
+	CreateRuntime: "CreateRuntime",
+	Poststart:     "Poststart",
+	Poststop:      "Poststop",
 }
 
 type Capabilities struct {
@@ -225,6 +247,23 @@ type Capabilities struct {
 	Permitted []string
 	// Ambient is the ambient set of capabilities that are kept.
 	Ambient []string
+}
+
+func (hooks *Hooks) RunHooks(name HookName, spec *specs.State) error {
+	hooksMap := map[HookName][]Hook{
+		Prestart:      hooks.Prestart,
+		CreateRuntime: hooks.CreateRuntime,
+		Poststart:     hooks.Poststart,
+		Poststop:      hooks.Poststop,
+	}
+
+	for i, hook := range hooksMap[name] {
+		if err := hook.Run(spec); err != nil {
+			return fmt.Errorf("%s hook #%d: %v", HookToName[name], i, err)
+		}
+	}
+
+	return nil
 }
 
 func (hooks *Hooks) UnmarshalJSON(b []byte) error {

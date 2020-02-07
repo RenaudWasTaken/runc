@@ -1682,10 +1682,12 @@ func (c *linuxContainer) criuNotifications(resp *criurpc.CriuResp, process *Proc
 				return nil
 			}
 			s.Pid = int(notify.GetPid())
-			for i, hook := range c.config.Hooks.Prestart {
-				if err := hook.Run(s); err != nil {
-					return newSystemErrorWithCausef(err, "running prestart hook %d", i)
-				}
+
+			if err := c.config.Hooks.RunHooks(configs.Prestart, s); err != nil {
+				return err
+			}
+			if err := c.config.Hooks.RunHooks(configs.CreateRuntime, s); err != nil {
+				return err
 			}
 		}
 	case notify.GetScript() == "post-restore":
